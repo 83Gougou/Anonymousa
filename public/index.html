@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROOMS OF LIES</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  :root {
+    --bg: #050508;
+    --surface: #0d0d14;
+    --border: #1e1e2e;
+    --red: #ff2d2d;
+    --blue: #2d7fff;
+    --green: #2dffaa;
+    --purple: #bb44ff;
+    --gold: #ffcc00;
+    --text: #c8c8d8;
+    --text-dim: #555570;
+    --font-mono: 'IBM Plex Mono', monospace;
+    --font-display: 'Bebas Neue', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Scanlines overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.15) 2px,
+      rgba(0,0,0,0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ── Screens ── */
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+
+  /* ── Title ── */
+  .title-hero {
+    text-align: center;
+    margin-bottom: 40px;
+  }
+  .title-hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(48px, 10vw, 96px);
+    letter-spacing: 8px;
+    color: #fff;
+    text-shadow: 0 0 30px rgba(255,45,45,0.6), 0 0 60px rgba(255,45,45,0.2);
+    animation: flicker 4s infinite;
+  }
+  .title-hero p {
+    color: var(--text-dim);
+    font-size: 11px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  @keyframes flicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.7; }
+    97% { opacity: 1; }
+    98% { opacity: 0.5; }
+    99% { opacity: 1; }
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 32px;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  .card h2 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    letter-spacing: 4px;
+    margin-bottom: 24px;
+    color: #fff;
+  }
+
+  /* ── Inputs ── */
+  input[type="text"] {
+    width: 100%;
+    background: #0a0a12;
+    border: 1px solid var(--border);
+    color: var(--green);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    padding: 12px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  input[type="text"]::placeholder { color: var(--text-dim); text-transform: none; letter-spacing: 1px; }
+  input[type="text"]:focus { border-color: var(--green); box-shadow: 0 0 12px rgba(45,255,170,0.1); }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-block;
+    font-family: var(--font-display);
+    font-size: 18px;
+    letter-spacing: 3px;
+    padding: 14px 28px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: uppercase;
+  }
+  .btn-primary {
+    background: var(--red);
+    color: #fff;
+    width: 100%;
+  }
+  .btn-primary:hover { background: #ff5050; box-shadow: 0 0 20px rgba(255,45,45,0.4); }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+    width: 100%;
+  }
+  .btn-secondary:hover { border-color: var(--text-dim); color: #fff; }
+
+  .btn-accent {
+    background: var(--green);
+    color: #000;
+    width: 100%;
+  }
+  .btn-accent:hover { box-shadow: 0 0 20px rgba(45,255,170,0.4); }
+
+  .btn-sm {
+    font-size: 13px;
+    padding: 8px 16px;
+    letter-spacing: 2px;
+    width: auto;
+  }
+
+  .gap { margin-top: 12px; }
+  .gap-lg { margin-top: 20px; }
+
+  /* ── Error msg ── */
+  .error-msg {
+    color: var(--red);
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin-top: 8px;
+    min-height: 16px;
+  }
+
+  /* ── Label ── */
+  .label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* ── Separator ── */
+  .sep { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* ── Divider text ── */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 2px;
+  }
+  .divider::before, .divider::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ═══════════════════════ LOBBY ═══════════════════════ */
+  #lobby-screen {
+    padding: 20px;
+    align-items: stretch;
+    max-width: 700px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .lobby-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lobby-title {
+    font-family: var(--font-display);
+    font-size: 32px;
+    letter-spacing: 4px;
+    color: #fff;
+  }
+
+  .lobby-code {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .code-badge {
+    font-family: var(--font-display);
+    font-size: 28px;
+    letter-spacing: 6px;
+    color: var(--gold);
+    background: rgba(255,204,0,0.08);
+    padding: 8px 20px;
+    border: 1px solid rgba(255,204,0,0.3);
+  }
+
+  .players-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .player-slot {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+  }
+
+  .player-slot.filled { border-color: #333350; }
+  .player-slot.empty { opacity: 0.4; }
+
+  .player-avatar {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .player-name {
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: #fff;
+  }
+
+  .host-badge {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--gold);
+    margin-top: 2px;
+  }
+
+  .player-slot.empty .player-name { color: var(--text-dim); font-size: 11px; }
+
+  .lobby-status {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    text-align: center;
+  }
+
+  /* ═══════════════════════ GAME ═══════════════════════ */
+  #game-screen {
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex-direction: row;
+    height: 100vh;
+    max-width: 100%;
+  }
+
+  .game-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .scenario-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 3px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .scenario-desc {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+    line-height: 1.6;
+  }
+
+  .role-badge {
+    margin: 16px 20px;
+    padding: 12px 16px;
+    border-left: 3px solid var(--red);
+  }
+
+  .role-name {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 3px;
+    margin-bottom: 4px;
+  }
+
+  .role-desc {
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    letter-spacing: 0.5px;
+  }
+
+  .rooms-nav {
+    padding: 0 20px;
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .rooms-nav .label { margin-bottom: 10px; }
+
+  .room-tab {
+    padding: 10px 14px;
+    margin-bottom: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.15s;
+  }
+
+  .room-tab:hover { border-color: #333350; background: rgba(255,255,255,0.02); }
+  .room-tab.active { border-color: #555575; background: rgba(255,255,255,0.04); }
+  .room-tab.locked { opacity: 0.3; cursor: not-allowed; }
+
+  .room-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .room-tab-name {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: #fff;
+    flex: 1;
+  }
+
+  .room-unread {
+    width: 16px;
+    height: 16px;
+    background: var(--red);
+    border-radius: 50%;
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+  }
+
+  .phase-controls {
+    padding: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .phase-timer {
+    font-family: var(--font-display);
+    font-size: 36px;
+    letter-spacing: 4px;
+    color: var(--gold);
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .phase-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-align: center;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* ── Main content ── */
+  .game-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .game-topbar {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .current-room-title {
+    font-family: var(--font-display);
+    font-size: 24px;
+    letter-spacing: 4px;
+    color: #fff;
+  }
+
+  .players-online {
+    display: flex;
+    gap: 8px;
+  }
+
+  .player-chip {
+    font-size: 10px;
+    letter-spacing: 1px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  .player-chip.self { color: var(--green); border-color: rgba(45,255,170,0.3); }
+
+  /* ── Info Panel ── */
+  .info-panel {
+    margin: 20px 24px 0;
+    padding: 16px 20px;
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
+    flex-shrink: 0;
+  }
+
+  .info-panel .label { color: var(--gold); }
+
+  .info-text {
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+    letter-spacing: 0.5px;
+  }
+
+  .info-text.manipulated {
+    color: var(--purple);
+    animation: glitch-text 2s infinite;
+  }
+
+  @keyframes glitch-text {
+    0%, 90%, 100% { transform: none; }
+    91% { transform: translateX(2px); }
+    92% { transform: translateX(-2px); }
+    93% { transform: none; }
+  }
+
+  .manipulation-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: var(--purple);
+    margin-top: 8px;
+  }
+
+  /* ── Chat ── */
+  .chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0 24px 20px;
+    margin-top: 16px;
+  }
+
+  .chat-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    flex-shrink: 0;
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-right: 8px;
+  }
+
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-track { background: transparent; }
+  .chat-messages::-webkit-scrollbar-thumb { background: var(--border); }
+
+  .chat-msg {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .chat-msg .sender {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    padding-top: 2px;
+    min-width: 80px;
+  }
+
+  .chat-msg .sender.self { color: var(--green); }
+
+  .chat-msg .text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  .chat-msg.system .text {
+    color: var(--text-dim);
+    font-size: 11px;
+    font-style: italic;
+  }
+
+  .chat-input-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    flex-shrink: 0;
+  }
+
+  .chat-input-row input {
+    flex: 1;
+    text-transform: none;
+    letter-spacing: 0.5px;
+  }
+
+  /* ═══════════════════════ VOTE ═══════════════════════ */
+  #vote-screen {
+    max-width: 700px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .vote-title {
+    font-family: var(--font-display);
+    font-size: 48px;
+    letter-spacing: 6px;
+    color: var(--red);
+    margin-bottom: 8px;
+    text-shadow: 0 0 30px rgba(255,45,45,0.5);
+  }
+
+  .vote-subtitle {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    margin-bottom: 40px;
+  }
+
+  .vote-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 24px;
+  }
+
+  .vote-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .vote-card:hover { border-color: var(--red); box-shadow: 0 0 20px rgba(255,45,45,0.15); }
+  .vote-card.selected { border-color: var(--red); background: rgba(255,45,45,0.08); }
+  .vote-card.voted-out { pointer-events: none; opacity: 0.5; }
+
+  .vote-card-name {
+    font-family: var(--font-display);
+    font-size: 28px;
+    letter-spacing: 3px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .vote-card-sub { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+
+  .vote-status {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  /* ─── Powers panel ─── */
+  .power-panel {
+    margin: 0 24px 16px;
+    padding: 12px 16px;
+    border: 1px solid rgba(187,68,255,0.3);
+    background: rgba(187,68,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .power-name {
+    font-family: var(--font-display);
+    font-size: 16px;
+    letter-spacing: 2px;
+    color: var(--purple);
+    margin-bottom: 2px;
+  }
+
+  .power-desc { font-size: 10px; color: var(--text-dim); }
+
+  .power-panel.used { opacity: 0.4; }
+
+  /* ═══════════════════════ RESULT ═══════════════════════ */
+  #result-screen {
+    max-width: 700px;
+    width: 100%;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .result-verdict {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 6vw, 64px);
+    letter-spacing: 6px;
+    margin-bottom: 8px;
+  }
+
+  .result-verdict.success { color: var(--green); text-shadow: 0 0 30px rgba(45,255,170,0.5); }
+  .result-verdict.fail { color: var(--red); text-shadow: 0 0 30px rgba(255,45,45,0.5); }
+
+  .result-accused {
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 40px;
+  }
+
+  .truth-box {
+    background: var(--surface);
+    border: 1px solid rgba(255,204,0,0.3);
+    padding: 24px;
+    margin-bottom: 24px;
+    text-align: left;
+  }
+
+  .truth-box .label { color: var(--gold); margin-bottom: 10px; }
+
+  .truth-text { font-size: 13px; line-height: 1.8; color: var(--text); }
+
+  .scores-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    text-align: left;
+  }
+
+  .score-player { font-size: 13px; color: #fff; margin-bottom: 4px; }
+  .score-role { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; margin-bottom: 8px; }
+  .score-points { font-family: var(--font-display); font-size: 28px; letter-spacing: 2px; }
+  .score-points.pos { color: var(--green); }
+  .score-points.neg { color: var(--red); }
+  .score-points.zero { color: var(--text-dim); }
+
+  /* ── Mobile ── */
+  @media (max-width: 640px) {
+    #game-screen { flex-direction: column; height: auto; min-height: 100vh; }
+    .game-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    .rooms-nav { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 12px; flex-direction: row; }
+    .room-tab { margin-bottom: 0; flex-shrink: 0; }
+    .vote-grid, .scores-grid, .players-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ── Blink ── */
+  @keyframes blink { 50% { opacity: 0; } }
+  .blink { animation: blink 1s step-end infinite; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 24px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--text);
+    z-index: 10000;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── Analyst modal ── */
+  #analyst-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  #analyst-modal.open { display: flex; }
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 32px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .modal-card h3 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    letter-spacing: 3px;
+    margin-bottom: 16px;
+    color: var(--blue);
+  }
+  .modal-room-list { display: flex; flex-direction: column; gap: 8px; margin: 16px 0; }
+  .modal-room-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 10px 16px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+  }
+  .modal-room-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+  /* ── Manipulator modal ── */
+  #manip-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  #manip-modal.open { display: flex; }
+
+  /* ── Debate screen ── */
+  #debate-screen {
+    padding: 0;
+    align-items: stretch;
+    justify-content: flex-start;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 800px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .debate-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .debate-title {
+    font-family: var(--font-display);
+    font-size: 32px;
+    letter-spacing: 5px;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .debate-sub { font-size: 10px; letter-spacing: 3px; color: var(--text-dim); }
+
+  .debate-tools {
+    display: flex;
+    gap: 10px;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HOME ═══════════ -->
+<div id="home-screen" class="screen active">
+  <div class="title-hero">
+    <h1>ROOMS OF LIES</h1>
+    <p>Fragment the truth. Survive the doubt.</p>
+  </div>
+
+  <div class="card">
+    <div class="label">Identifiant</div>
+    <input type="text" id="username-input" placeholder="Votre nom de code" maxlength="14">
+    <div class="error-msg" id="home-error"></div>
+
+    <div class="gap-lg"></div>
+    <button class="btn btn-primary" onclick="createLobby()">CRÉER UNE PARTIE</button>
+
+    <div class="divider">OU</div>
+
+    <div class="label">Code d'accès</div>
+    <input type="text" id="code-input" placeholder="XXXXX" maxlength="5" style="letter-spacing:8px; text-align:center;">
+    <div class="gap"></div>
+    <button class="btn btn-secondary" onclick="joinLobby()">REJOINDRE</button>
+  </div>
+</div>
+
+<!-- ═══════════ LOBBY ═══════════ -->
+<div id="lobby-screen" class="screen">
+  <div class="lobby-header">
+    <div class="lobby-title">BRIEFING</div>
+    <div class="lobby-code">
+      <div class="label" style="margin:0">CODE :</div>
+      <div class="code-badge" id="display-code">—</div>
+    </div>
+  </div>
+
+  <div class="label">AGENTS CONNECTÉS</div>
+  <div class="players-grid" id="players-grid"></div>
+
+  <div class="lobby-status" id="lobby-status">En attente de joueurs…</div>
+
+  <div id="host-controls" style="display:none">
+    <button class="btn btn-accent" onclick="startGame()">LANCER L'OPÉRATION</button>
+  </div>
+  <div id="guest-waiting" style="display:none">
+    <div style="font-size:11px; letter-spacing:2px; color:var(--text-dim); text-align:center;">
+      <span class="blink">█</span> EN ATTENTE DU HOST
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ GAME (ROOMS) ═══════════ -->
+<div id="game-screen" class="screen">
+  <div class="game-sidebar">
+    <div class="sidebar-header">
+      <div class="scenario-title" id="scenario-title">—</div>
+      <div class="scenario-desc" id="scenario-desc">—</div>
+    </div>
+
+    <div class="role-badge" id="role-badge">
+      <div class="role-name" id="role-name">—</div>
+      <div class="role-desc" id="role-desc">—</div>
+    </div>
+
+    <div class="rooms-nav">
+      <div class="label">ROOMS</div>
+      <div id="rooms-tabs"></div>
+    </div>
+
+    <div class="phase-controls">
+      <div class="phase-label">PHASE : EXPLORATION</div>
+      <div class="phase-timer" id="rooms-timer">—</div>
+      <div id="host-debate-btn" style="display:none">
+        <button class="btn btn-primary btn-sm" onclick="startDebate()" style="width:100%">PASSER AU DÉBAT</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-main">
+    <div class="game-topbar">
+      <div class="current-room-title" id="current-room-title">—</div>
+      <div class="players-online" id="players-online"></div>
+    </div>
+
+    <div id="power-panel-manip" class="power-panel" style="display:none">
+      <div>
+        <div class="power-name">MANIPULATION</div>
+        <div class="power-desc">Modifier une info dans une room (usage unique)</div>
+      </div>
+      <button class="btn btn-sm" style="background:var(--purple);color:#fff;border:none;" onclick="openManipModal()">ACTIVER</button>
+    </div>
+
+    <div id="info-panel" class="info-panel">
+      <div class="label">DOSSIER CLASSIFIÉ</div>
+      <div class="info-text" id="room-info">—</div>
+    </div>
+
+    <div class="chat-container">
+      <div class="chat-label">COMMUNICATION CHIFFRÉE — <span id="room-players-list">—</span></div>
+      <div class="chat-messages" id="room-chat"></div>
+      <div class="chat-input-row">
+        <input type="text" id="room-msg-input" placeholder="Message..." onkeydown="if(event.key==='Enter')sendRoomMsg()">
+        <button class="btn btn-primary btn-sm" onclick="sendRoomMsg()">ENVOYER</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ DEBATE ═══════════ -->
+<div id="debate-screen" class="screen">
+  <div class="debate-header">
+    <div class="debate-title">DÉBRIEF GLOBAL</div>
+    <div class="debate-sub">Partagez vos informations. Décelez le traître.</div>
+  </div>
+
+  <div class="debate-tools" id="debate-tools">
+    <!-- analyst button injected here -->
+  </div>
+
+  <div class="chat-container">
+    <div class="chat-label">DISCUSSION OUVERTE</div>
+    <div class="chat-messages" id="debate-chat"></div>
+    <div class="chat-input-row">
+      <input type="text" id="debate-msg-input" placeholder="Message..." onkeydown="if(event.key==='Enter')sendDebateMsg()">
+      <button class="btn btn-primary btn-sm" onclick="sendDebateMsg()">ENVOYER</button>
+    </div>
+  </div>
+
+  <div style="padding:16px 24px; flex-shrink:0; border-top:1px solid var(--border);">
+    <div id="debate-timer" style="font-family:var(--font-display);font-size:28px;letter-spacing:4px;color:var(--gold);text-align:center;margin-bottom:12px;">—</div>
+    <div id="host-vote-btn" style="display:none">
+      <button class="btn btn-primary" onclick="startVote()">PASSER AU VOTE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ VOTE ═══════════ -->
+<div id="vote-screen" class="screen">
+  <div class="vote-title">VOTE FINAL</div>
+  <div class="vote-subtitle">QUI EST LE TRAÎTRE ?</div>
+  <div class="vote-grid" id="vote-grid"></div>
+  <div class="vote-status" id="vote-status">En attente des votes…</div>
+</div>
+
+<!-- ═══════════ RESULT ═══════════ -->
+<div id="result-screen" class="screen">
+  <div class="result-verdict" id="result-verdict">—</div>
+  <div class="result-accused" id="result-accused">—</div>
+
+  <div class="truth-box">
+    <div class="label">LA VÉRITÉ</div>
+    <div class="truth-text" id="truth-text">—</div>
+  </div>
+
+  <div class="label" style="margin-bottom:12px;text-align:left;width:100%">SCORES</div>
+  <div class="scores-grid" id="scores-grid"></div>
+
+  <button class="btn btn-secondary" onclick="location.reload()" style="margin-top:8px">NOUVELLE PARTIE</button>
+</div>
+
+<!-- ═══════════ ANALYST MODAL ═══════════ -->
+<div id="analyst-modal">
+  <div class="modal-card">
+    <h3>VÉRIFICATION</h3>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Choisissez une room à analyser :</div>
+    <div class="modal-room-list" id="analyst-room-list"></div>
+    <button class="btn btn-secondary btn-sm" onclick="closeAnalystModal()">ANNULER</button>
+  </div>
+</div>
+
+<!-- ═══════════ MANIP MODAL ═══════════ -->
+<div id="manip-modal">
+  <div class="modal-card">
+    <h3 style="color:var(--purple)">MANIPULATION</h3>
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">Choisissez la room à altérer :</div>
+    <div class="modal-room-list" id="manip-room-select"></div>
+    <div id="manip-step2" style="display:none;margin-top:16px;">
+      <div class="label">NOUVELLE INFORMATION</div>
+      <input type="text" id="manip-new-info" placeholder="Entrez la fausse info..." style="margin-bottom:12px;">
+      <button class="btn btn-accent btn-sm" onclick="confirmManip()">CONFIRMER</button>
+    </div>
+    <div style="margin-top:12px;">
+      <button class="btn btn-secondary btn-sm" onclick="closeManipModal()">ANNULER</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ TOAST ═══════════ -->
+<div id="toast"></div>
+
+<script>
+const socket = io();
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let state = {
+  myId: null,
+  username: null,
+  lobbyCode: null,
+  isHost: false,
+  phase: 'lobby',
+  role: null,
+  rooms: [],         // rooms assigned to me
+  allRooms: [],
+  currentRoomId: null,
+  roomMessages: {},  // roomId -> messages[]
+  debateMessages: [],
+  players: [],
+  timers: {},
+  manipSelectedRoom: null,
+  analystUsed: false,
+  manipulatorUsed: false,
+  myVote: null
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function toast(msg, duration = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), duration);
+}
+
+function showError(id, msg) {
+  document.getElementById(id).textContent = msg;
+}
+
+function startCountdown(elementId, seconds, onEnd) {
+  clearInterval(state.timers[elementId]);
+  let remaining = seconds;
+  const el = document.getElementById(elementId);
+  if (el) el.textContent = formatTime(remaining);
+
+  state.timers[elementId] = setInterval(() => {
+    remaining--;
+    if (el) el.textContent = formatTime(remaining);
+    if (remaining <= 0) {
+      clearInterval(state.timers[elementId]);
+      if (onEnd) onEnd();
+    }
+  }, 1000);
+}
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function getPlayerName(id) {
+  const p = state.players.find(p => p.id === id);
+  return p ? p.username : id;
+}
+
+// ─── Home ─────────────────────────────────────────────────────────────────────
+
+function createLobby() {
+  const username = document.getElementById('username-input').value.trim();
+  if (!username) return showError('home-error', 'Entrez un nom de code.');
+  state.username = username;
+  socket.emit('create_lobby', { username });
+}
+
+function joinLobby() {
+  const username = document.getElementById('username-input').value.trim();
+  const code = document.getElementById('code-input').value.trim().toUpperCase();
+  if (!username) return showError('home-error', 'Entrez un nom de code.');
+  if (!code) return showError('home-error', 'Entrez un code d\'accès.');
+  state.username = username;
+  socket.emit('join_lobby', { code, username });
+}
+
+// ─── Lobby ────────────────────────────────────────────────────────────────────
+
+function renderLobby(lobby) {
+  state.lobbyCode = lobby.code;
+  state.isHost = lobby.isHost;
+  state.players = lobby.players;
+
+  document.getElementById('display-code').textContent = lobby.code;
+
+  const grid = document.getElementById('players-grid');
+  grid.innerHTML = '';
+  const slots = 4;
+  for (let i = 0; i < slots; i++) {
+    const p = lobby.players[i];
+    const slot = document.createElement('div');
+    if (p) {
+      slot.className = 'player-slot filled';
+      const initial = p.username[0].toUpperCase();
+      const colors = ['#ff2d2d','#2d7fff','#2dffaa','#cc44ff'];
+      slot.innerHTML = `
+        <div class="player-avatar" style="background:${colors[i]}22;border-color:${colors[i]}44;color:${colors[i]}">${initial}</div>
+        <div>
+          <div class="player-name">${p.username}${p.id === socket.id ? ' <span style="color:var(--green);font-size:9px">[VOUS]</span>' : ''}</div>
+          ${p.id === lobby.host ? '<div class="host-badge">▸ HOST</div>' : ''}
+        </div>`;
+    } else {
+      slot.className = 'player-slot empty';
+      slot.innerHTML = `<div class="player-avatar">?</div><div class="player-name">En attente…</div>`;
+    }
+    grid.appendChild(slot);
+  }
+
+  const count = lobby.players.length;
+  document.getElementById('lobby-status').textContent =
+    `${count}/4 agent${count > 1 ? 's' : ''} connecté${count > 1 ? 's' : ''}`;
+
+  document.getElementById('host-controls').style.display = lobby.isHost ? 'block' : 'none';
+  document.getElementById('guest-waiting').style.display = lobby.isHost ? 'none' : 'block';
+}
+
+function startGame() {
+  socket.emit('start_game', { code: state.lobbyCode });
+}
+
+// ─── Game (Rooms phase) ───────────────────────────────────────────────────────
+
+function initGame(data) {
+  state.role = data.role;
+  state.rooms = data.rooms;
+  state.currentRoomId = data.roomAssignments[0];
+  state.players = data.allPlayers;
+
+  // Init messages
+  data.rooms.forEach(r => { state.roomMessages[r.id] = []; });
+
+  document.getElementById('scenario-title').textContent = data.scenario.title;
+  document.getElementById('scenario-desc').textContent = data.scenario.description;
+
+  const roleBadge = document.getElementById('role-badge');
+  roleBadge.style.borderLeftColor = data.role.color;
+  document.getElementById('role-name').textContent = data.role.name;
+  document.getElementById('role-name').style.color = data.role.color;
+  document.getElementById('role-desc').textContent = data.role.desc;
+
+  // Render room tabs
+  const tabs = document.getElementById('rooms-tabs');
+  tabs.innerHTML = '';
+  const allRoomIds = ['A','B','C','D'];
+  allRoomIds.forEach(rid => {
+    const roomColors = { A:'#ff3030', B:'#3088ff', C:'#30ff88', D:'#cc44ff' };
+    const roomNames = { A:'SALLE ROUGE', B:'SALLE BLEUE', C:'SALLE VERTE', D:'SALLE VIOLETTE' };
+    const hasAccess = data.roomAssignments.includes(rid);
+    const tab = document.createElement('div');
+    tab.className = `room-tab${!hasAccess ? ' locked' : ''}${rid === state.currentRoomId ? ' active' : ''}`;
+    tab.id = `tab-${rid}`;
+    tab.innerHTML = `
+      <div class="room-dot" style="background:${hasAccess ? roomColors[rid] : '#333'}"></div>
+      <div class="room-tab-name">${roomNames[rid]}</div>
+      <div class="room-unread" id="unread-${rid}" style="display:none">0</div>`;
+    if (hasAccess) tab.onclick = () => switchRoom(rid);
+    tabs.appendChild(tab);
+  });
+
+  // Players online
+  renderPlayersOnline();
+
+  // Powers
+  if (data.role.id === 'MANIPULATOR') {
+    document.getElementById('power-panel-manip').style.display = 'flex';
+    // Populate manip room select
+    const sel = document.getElementById('manip-room-select');
+    sel.innerHTML = '';
+    data.roomAssignments.forEach(rid => {
+      const names = { A:'SALLE ROUGE', B:'SALLE BLEUE', C:'SALLE VERTE', D:'SALLE VIOLETTE' };
+      const btn = document.createElement('button');
+      btn.className = 'modal-room-btn';
+      btn.textContent = names[rid];
+      btn.onclick = () => selectManipRoom(rid);
+      sel.appendChild(btn);
+    });
+  }
+
+  // Host debate btn
+  document.getElementById('host-debate-btn').style.display = state.isHost ? 'block' : 'none';
+
+  switchRoom(state.currentRoomId);
+  showScreen('game-screen');
+}
+
+function switchRoom(rid) {
+  state.currentRoomId = rid;
+
+  // Update tabs
+  document.querySelectorAll('.room-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById(`tab-${rid}`);
+  if (tab) tab.classList.add('active');
+
+  // Clear unread
+  const unread = document.getElementById(`unread-${rid}`);
+  if (unread) unread.style.display = 'none';
+
+  // Room info
+  const room = state.rooms.find(r => r.id === rid);
+  const roomNames = { A:'SALLE ROUGE', B:'SALLE BLEUE', C:'SALLE VERTE', D:'SALLE VIOLETTE' };
+  document.getElementById('current-room-title').textContent = roomNames[rid];
+
+  const infoEl = document.getElementById('room-info');
+  if (room) {
+    infoEl.textContent = room.info;
+    infoEl.className = 'info-text' + (room.manipulated ? ' manipulated' : '');
+  } else {
+    infoEl.textContent = '[ACCÈS REFUSÉ — VOUS N\'ÉTIEZ PAS PRÉSENT DANS CETTE SALLE]';
+    infoEl.className = 'info-text';
+    infoEl.style.color = 'var(--text-dim)';
+  }
+
+  // Players in room (approximate — show all for now, we don't track per room without server query)
+  const roomPlayers = state.players.filter(p => p.id !== socket.id).map(p => p.username).join(', ') || 'Aucun autre agent';
+  document.getElementById('room-players-list').textContent = roomPlayers;
+
+  // Chat
+  renderRoomChat(rid);
+}
+
+function renderPlayersOnline() {
+  const container = document.getElementById('players-online');
+  container.innerHTML = '';
+  state.players.forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = `player-chip${p.id === socket.id ? ' self' : ''}`;
+    chip.textContent = p.username;
+    container.appendChild(chip);
+  });
+}
+
+function renderRoomChat(rid) {
+  const msgs = state.roomMessages[rid] || [];
+  const chat = document.getElementById('room-chat');
+  chat.innerHTML = '';
+  msgs.forEach(m => appendRoomMsgEl(m));
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function appendRoomMsgEl(msg) {
+  const chat = document.getElementById('room-chat');
+  const el = document.createElement('div');
+  el.className = 'chat-msg';
+  el.innerHTML = `
+    <div class="sender${msg.playerId === socket.id ? ' self' : ''}">${msg.username}</div>
+    <div class="text">${escapeHtml(msg.text)}</div>`;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function sendRoomMsg() {
+  const input = document.getElementById('room-msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('room_message', { code: state.lobbyCode, roomId: state.currentRoomId, text });
+  input.value = '';
+}
+
+// ─── Powers ───────────────────────────────────────────────────────────────────
+
+function openManipModal() {
+  if (state.manipulatorUsed) return toast('Pouvoir déjà utilisé.');
+  document.getElementById('manip-step2').style.display = 'none';
+  document.getElementById('manip-modal').classList.add('open');
+}
+
+function closeManipModal() {
+  document.getElementById('manip-modal').classList.remove('open');
+  state.manipSelectedRoom = null;
+}
+
+function selectManipRoom(rid) {
+  state.manipSelectedRoom = rid;
+  document.querySelectorAll('#manip-room-select .modal-room-btn').forEach(b => b.style.borderColor = '');
+  document.getElementById('manip-step2').style.display = 'block';
+}
+
+function confirmManip() {
+  const newInfo = document.getElementById('manip-new-info').value.trim();
+  if (!newInfo) return;
+  socket.emit('manipulate_room', { code: state.lobbyCode, roomId: state.manipSelectedRoom, newInfo });
+  closeManipModal();
+}
+
+function openAnalystModal() {
+  if (state.analystUsed) return toast('Pouvoir déjà utilisé.');
+  const list = document.getElementById('analyst-room-list');
+  list.innerHTML = '';
+  const names = { A:'SALLE ROUGE', B:'SALLE BLEUE', C:'SALLE VERTE', D:'SALLE VIOLETTE' };
+  state.rooms.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'modal-room-btn';
+    btn.textContent = names[r.id];
+    btn.onclick = () => {
+      socket.emit('analyst_verify', { code: state.lobbyCode, roomId: r.id });
+      closeAnalystModal();
+    };
+    list.appendChild(btn);
+  });
+  document.getElementById('analyst-modal').classList.add('open');
+}
+
+function closeAnalystModal() {
+  document.getElementById('analyst-modal').classList.remove('open');
+}
+
+// ─── Debate ───────────────────────────────────────────────────────────────────
+
+function initDebate() {
+  showScreen('debate-screen');
+
+  // Analyst button
+  const tools = document.getElementById('debate-tools');
+  tools.innerHTML = '';
+  if (state.role && state.role.id === 'ANALYST') {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary btn-sm';
+    btn.id = 'analyst-btn';
+    btn.innerHTML = '🔍 VÉRIFIER UNE INFO';
+    btn.onclick = openAnalystModal;
+    tools.appendChild(btn);
+  }
+
+  document.getElementById('host-vote-btn').style.display = state.isHost ? 'block' : 'none';
+}
+
+function appendDebateMsgEl(msg) {
+  const chat = document.getElementById('debate-chat');
+  const el = document.createElement('div');
+  el.className = 'chat-msg' + (msg.system ? ' system' : '');
+  if (msg.system) {
+    el.innerHTML = `<div class="text">${escapeHtml(msg.text)}</div>`;
+  } else {
+    el.innerHTML = `
+      <div class="sender${msg.playerId === socket.id ? ' self' : ''}">${msg.username}</div>
+      <div class="text">${escapeHtml(msg.text)}</div>`;
+  }
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function sendDebateMsg() {
+  const input = document.getElementById('debate-msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('debate_message', { code: state.lobbyCode, text });
+  input.value = '';
+}
+
+function startDebate() { socket.emit('start_debate', { code: state.lobbyCode }); }
+function startVote() { socket.emit('start_vote', { code: state.lobbyCode }); }
+
+// ─── Vote ─────────────────────────────────────────────────────────────────────
+
+function initVote() {
+  showScreen('vote-screen');
+  const grid = document.getElementById('vote-grid');
+  grid.innerHTML = '';
+
+  state.players.forEach(p => {
+    if (p.id === socket.id) return; // can't vote yourself (simplified)
+    const card = document.createElement('div');
+    card.className = 'vote-card';
+    card.id = `vote-card-${p.id}`;
+    card.innerHTML = `
+      <div class="vote-card-name">${p.username}</div>
+      <div class="vote-card-sub">AGENT SUSPECT</div>`;
+    card.onclick = () => castVote(p.id);
+    grid.appendChild(card);
+  });
+}
+
+function castVote(targetId) {
+  if (state.myVote) return;
+  state.myVote = targetId;
+  document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`vote-card-${targetId}`);
+  if (card) card.classList.add('selected');
+  socket.emit('cast_vote', { code: state.lobbyCode, targetId });
+}
+
+// ─── Result ───────────────────────────────────────────────────────────────────
+
+function showResult(data) {
+  showScreen('result-screen');
+
+  const verdict = document.getElementById('result-verdict');
+  if (data.isTraitorCaught) {
+    verdict.textContent = 'TRAÎTRE DÉMASQUÉ';
+    verdict.className = 'result-verdict success';
+  } else {
+    verdict.textContent = 'LE TRAÎTRE S\'ÉCHAPPE';
+    verdict.className = 'result-verdict fail';
+  }
+
+  document.getElementById('result-accused').textContent =
+    `Vote majoritaire : ${data.accusedPlayer.username} — ${data.accusedRole.name}`;
+
+  document.getElementById('truth-text').textContent = data.truth;
+
+  // Scores
+  const grid = document.getElementById('scores-grid');
+  grid.innerHTML = '';
+  state.players.forEach(p => {
+    const score = data.scores[p.id] || 0;
+    const roleInfo = data.roleReveal[p.id];
+    const card = document.createElement('div');
+    card.className = 'score-card';
+    card.innerHTML = `
+      <div class="score-player">${p.username}</div>
+      <div class="score-role">${roleInfo?.role?.name || '—'}</div>
+      <div class="score-points ${score > 0 ? 'pos' : score < 0 ? 'neg' : 'zero'}">${score > 0 ? '+' : ''}${score}</div>`;
+    grid.appendChild(card);
+  });
+}
+
+// ─── Escape HTML ─────────────────────────────────────────────────────────────
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Socket Events ────────────────────────────────────────────────────────────
+
+socket.on('connect', () => { state.myId = socket.id; });
+
+socket.on('lobby_joined', ({ code, lobby }) => {
+  state.lobbyCode = code;
+  renderLobby(lobby);
+  showScreen('lobby-screen');
+});
+
+socket.on('lobby_update', ({ lobby }) => {
+  state.players = lobby.players;
+  renderLobby(lobby);
+});
+
+socket.on('player_left', ({ username, lobby }) => {
+  toast(`${username} a quitté la partie.`);
+  state.players = lobby.players;
+  renderLobby(lobby);
+});
+
+socket.on('game_start', (data) => {
+  initGame(data);
+});
+
+socket.on('phase_change', ({ phase, duration }) => {
+  state.phase = phase;
+  if (phase === 'rooms' && duration) {
+    startCountdown('rooms-timer', duration, () => {
+      if (state.isHost) toast('Temps écoulé ! Passez au débat.');
+    });
+  }
+  if (phase === 'debate') {
+    initDebate();
+    if (duration) startCountdown('debate-timer', duration, () => {
+      if (state.isHost) toast('Temps écoulé ! Passez au vote.');
+    });
+  }
+  if (phase === 'vote') initVote();
+});
+
+socket.on('room_message', ({ roomId, msg }) => {
+  if (!state.roomMessages[roomId]) state.roomMessages[roomId] = [];
+  state.roomMessages[roomId].push(msg);
+
+  if (roomId === state.currentRoomId) {
+    appendRoomMsgEl(msg);
+  } else {
+    // Unread badge
+    const unread = document.getElementById(`unread-${roomId}`);
+    if (unread) {
+      const count = parseInt(unread.textContent || '0') + 1;
+      unread.textContent = count;
+      unread.style.display = 'flex';
+    }
+  }
+});
+
+socket.on('debate_message', ({ msg }) => {
+  appendDebateMsgEl(msg);
+});
+
+socket.on('info_manipulated', ({ roomId, newInfo }) => {
+  const room = state.rooms.find(r => r.id === roomId);
+  if (room) {
+    room.info = newInfo;
+    room.manipulated = true;
+    if (state.currentRoomId === roomId) {
+      const infoEl = document.getElementById('room-info');
+      infoEl.textContent = newInfo;
+      infoEl.classList.add('manipulated');
+    }
+    toast(`⚠ Info de la Salle ${roomId} modifiée.`);
+  }
+});
+
+socket.on('analyst_result', ({ roomId, isManipulated, realInfo }) => {
+  state.analystUsed = true;
+  const names = { A:'ROUGE', B:'BLEUE', C:'VERTE', D:'VIOLETTE' };
+  const msg = isManipulated
+    ? `[ANALYSTE] Salle ${names[roomId]} : INFO MANIPULÉE. Vraie info : "${realInfo}"`
+    : `[ANALYSTE] Salle ${names[roomId]} : info authentique.`;
+  appendDebateMsgEl({ playerId: socket.id, username: 'ANALYSTE', text: msg });
+  toast('Analyse complète.');
+});
+
+socket.on('power_used', ({ power }) => {
+  if (power === 'MANIPULATOR') {
+    state.manipulatorUsed = true;
+    const panel = document.getElementById('power-panel-manip');
+    if (panel) panel.classList.add('used');
+    toast('Manipulation activée !');
+  }
+  if (power === 'ANALYST') {
+    state.analystUsed = true;
+    const btn = document.getElementById('analyst-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '✓ ANALYSE UTILISÉE'; }
+  }
+});
+
+socket.on('vote_update', ({ votesIn, total }) => {
+  document.getElementById('vote-status').textContent = `${votesIn}/${total} votes enregistrés`;
+});
+
+socket.on('game_result', (data) => {
+  showResult(data);
+});
+
+socket.on('error', ({ msg }) => {
+  toast('⚠ ' + msg);
+  showError('home-error', msg);
+});
+</script>
+</body>
+</html>
